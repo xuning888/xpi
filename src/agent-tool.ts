@@ -99,6 +99,19 @@ export function createAgentToolDefinition(): ToolDefinition<
         };
       }
 
+      // Resolve API key from the parent session's auth
+      let apiKey: string | undefined;
+      try {
+        const authResult = await ctx.modelRegistry.getApiKeyAndHeaders(
+          ctx.model as Model<any>,
+        );
+        if (authResult.ok) {
+          apiKey = authResult.apiKey;
+        }
+      } catch {
+        // Auth not available, sub-agent will try env vars
+      }
+
       // Build sub-agent options
       const subagentOptions = {
         description: input.description,
@@ -106,6 +119,7 @@ export function createAgentToolDefinition(): ToolDefinition<
         type: subagentType,
         cwd: ctx.cwd,
         model: ctx.model as Model<any>,
+        apiKey,
         runInBackground: input.run_in_background ?? false,
       };
 
@@ -155,17 +169,42 @@ export function createAgentToolDefinition(): ToolDefinition<
         };
       }
 
+      // Build trace section if available
+      let traceSection = "";
+      if (result.trace && result.trace.length > 0) {
+        const traceLines: string[] = [
+          ``,
+          `### 🔍 Work Process`,
+          ``,
+        ];
+        for (const step of result.trace) {
+          const toolSummary = step.toolCalls.length > 0
+            ? step.toolCalls.map(tc => `\`${tc.name}\``).join(", ")
+            : "(thinking)";
+          traceLines.push(
+            `**Turn ${step.turn}** (${step.tokens.toLocaleString()} tokens) — ${toolSummary}`,
+          );
+          if (step.text) {
+            // Show first line of text as summary
+            const firstLine = step.text.split("\n")[0].slice(0, 120);
+            traceLines.push(`> ${firstLine}${step.text.length > 120 ? "..." : ""}`);
+          }
+          traceLines.push(``);
+        }
+        traceSection = traceLines.join("\n");
+      }
+
       // Format the successful result
       const outputText = [
         `## Sub-agent Result (${subagentType})`,
         `**Task**: ${input.description}`,
         ``,
         `**Usage**: ${result.usage.totalTokens.toLocaleString()} tokens (in: ${result.usage.input.toLocaleString()}, out: ${result.usage.output.toLocaleString()})`,
-        ``,
+        traceSection,
         `---`,
         ``,
         result.output,
-      ].join("\n");
+      ].filter(Boolean).join("\n");
 
       return {
         content: [{ type: "text", text: outputText }],

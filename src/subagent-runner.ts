@@ -14,7 +14,7 @@ import {
   streamSimple,
 } from "@earendil-works/pi-ai/compat";
 import { getAgentTypeConfig } from "./agent-types.ts";
-import type { SubagentOptions, SubagentResult } from "./types.ts";
+import type { SubagentOptions, SubagentResult, SubagentTraceStep } from "./types.ts";
 
 // ============================================================================
 // Helpers
@@ -54,6 +54,17 @@ function sumUsage(messages: AgentMessage[]): SubagentResult["usage"] {
   return { input, output, cacheRead, cacheWrite, totalTokens };
 }
 
+/** Extract error from the last assistant message if it has stopReason "error". */
+function extractAgentError(messages: AgentMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (isAssistantMessage(msg) && msg.stopReason === "error" && msg.errorMessage) {
+      return msg.errorMessage;
+    }
+  }
+  return undefined;
+}
+
 // ============================================================================
 // Sub-agent Runner
 // ============================================================================
@@ -70,7 +81,7 @@ let nextRunId = 0;
  * executes the task prompt, and collects the output.
  */
 export async function runSubagent(
-  options: SubagentOptions & { model: Model<any> },
+  options: SubagentOptions & { model: Model<any>; apiKey?: string },
 ): Promise<SubagentResult> {
   const config = getAgentTypeConfig(options.type);
   const tools = config.createTools(options.cwd);
@@ -101,7 +112,12 @@ ${options.prompt}
     streamFn: streamSimple,
     sessionId: `xpi-subagent-${options.type}-${Date.now()}`,
     toolExecution: "parallel",
+    getApiKey: options.apiKey
+      ? async () => options.apiKey
+      : undefined,
   });
+
+
 
   let aborted = false;
   let errorMessage: string | undefined;
@@ -118,14 +134,36 @@ ${options.prompt}
     }
   }
 
-  // Collect results
+  // Collect results and build trace from messages
   const messages = agent.state.messages;
   const usage = sumUsage(messages);
 
+  // Check for errors that were handled internally by the Agent (not thrown)
+  if (!errorMessage && !aborted) {
+    errorMessage = extractAgentError(messages);
+  }
+
+  // Build work trace from assistant messages
+  const trace: SubagentTraceStep[] = [];
+  let turnIndex = 0;
   const outputParts: string[] = [];
   for (const msg of messages) {
     if (isAssistantMessage(msg)) {
+      turnIndex++;
       const text = extractTextContent(msg);
+      const toolCalls = msg.content
+        .filter((c): c is { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> } =>
+          c.type === "toolCall",
+        )
+        .map((tc) => ({ name: tc.name, arguments: tc.arguments }));
+
+      trace.push({
+        turn: turnIndex,
+        toolCalls,
+        text: text.slice(0, 500),
+        tokens: msg.usage?.totalTokens ?? 0,
+      });
+
       if (text) {
         outputParts.push(text);
       }
@@ -140,6 +178,7 @@ ${options.prompt}
     aborted,
     error: errorMessage,
     usage,
+    trace: trace.length > 0 ? trace : undefined,
   };
 }
 
@@ -150,7 +189,7 @@ ${options.prompt}
  * via `getBackgroundRunResult()`.
  */
 export function runSubagentBackground(
-  options: SubagentOptions & { model: Model<any> },
+  options: SubagentOptions & { model: Model<any>; apiKey?: string },
 ): string {
   const runId = `bg-${++nextRunId}-${Date.now()}`;
   const promise = runSubagent(options);

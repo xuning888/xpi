@@ -19,7 +19,11 @@
 
 import { writeFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai/compat";
 import { createAgentToolDefinition } from "./agent-tool.ts";
+import { runSubagent } from "./subagent-runner.ts";
+import { isValidSubagentType } from "./agent-types.ts";
+import type { SubagentType } from "./types.ts";
 
 /**
  * Extension entry point.
@@ -56,10 +60,99 @@ export default function xpi(pi: ExtensionAPI): void {
   // pi.registerTool(createTaskListToolDefinition());
 
   // =========================================================================
+  // Command: /agent - launch sub-agent directly from command line
+  // =========================================================================
+
+  pi.registerCommand("agent", {
+    description: "Launch a sub-agent directly (Explore | Plan | general-purpose)",
+    handler: async (args, ctx) => {
+      if (!args || !args.trim()) {
+        ctx.ui.notify("用法: /agent <类型> <描述>", "error");
+        ctx.ui.notify("类型: Explore | Plan | general-purpose", "info");
+        return;
+      }
+
+      // Parse: /agent Explore 探索当前目录
+      const parts = args.trim().split(/\s+/);
+      const type = parts[0];
+      const description = parts.slice(1).join(" ");
+
+      if (!isValidSubagentType(type)) {
+        ctx.ui.notify(`无效类型 "${type}"，可用: Explore | Plan | general-purpose`, "error");
+        return;
+      }
+
+      if (!description) {
+        ctx.ui.notify("请提供任务描述", "error");
+        return;
+      }
+
+      if (!ctx.model) {
+        ctx.ui.notify("当前没有激活的模型", "error");
+        return;
+      }
+
+      // Get API key from parent session
+      let apiKey: string | undefined;
+      try {
+        const authResult = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model as Model<any>);
+        if (authResult.ok) {
+          apiKey = authResult.apiKey;
+        }
+      } catch {
+        // env fallback
+      }
+
+      ctx.ui.notify(`🚀 启动 ${type} 子代理: ${description}...`, "info");
+
+      const result = await runSubagent({
+        description,
+        prompt: description,
+        type: type as SubagentType,
+        cwd: ctx.cwd,
+        model: ctx.model as Model<any>,
+        apiKey,
+      });
+
+      if (result.error) {
+        ctx.ui.notify(`子代理失败: ${result.error}`, "error");
+        if (result.output) {
+          ctx.ui.notify(result.output.slice(0, 500), "info");
+        }
+        return;
+      }
+
+      // Show trace
+      if (result.trace && result.trace.length > 0) {
+        for (const step of result.trace) {
+          const tools = step.toolCalls.length > 0
+            ? step.toolCalls.map(tc => tc.name).join(", ")
+            : "💭";
+          ctx.ui.notify(
+            `  Turn ${step.turn} (${step.tokens.toLocaleString()}t) ${tools}`,
+            "info",
+          );
+          if (step.text) {
+            const firstLine = step.text.split("\n")[0].slice(0, 100);
+            ctx.ui.notify(`    ${firstLine}`, "info");
+          }
+        }
+      }
+
+      ctx.ui.notify("", "info");
+      ctx.ui.notify(
+        `✅ 完成 · ${result.usage.totalTokens.toLocaleString()} tokens`,
+        "info",
+      );
+      ctx.ui.notify("", "info");
+      ctx.ui.notify(result.output.slice(0, 2000), "info");
+    },
+  });
+
+  // =========================================================================
   // Event handlers
   // =========================================================================
 
-  // Track sub-agent lifecycle for logging/debugging
   pi.on("agent_start", (_event, _ctx) => {
     // Future: update team member status to "busy"
   });

@@ -15,6 +15,7 @@ export type SubagentType = "general-purpose" | "Explore" | "Plan";
 export type SubagentModel = "sonnet" | "opus" | "haiku";
 
 /** Options for running a sub-agent. */
+/** Options for running a sub-agent. */
 export interface SubagentOptions {
   /** 3-5 word task description. */
   description: string;
@@ -22,16 +23,28 @@ export interface SubagentOptions {
   prompt: string;
   /** Agent type determining tool set and system prompt. */
   type: SubagentType;
-  /** Model override. Defaults to the parent agent's model. */
-  model?: SubagentModel;
   /** Working directory for the sub-agent. */
   cwd: string;
   /** Whether to run asynchronously without waiting for completion. */
   runInBackground?: boolean;
+  /** API key for authentication (from parent session). */
+  apiKey?: string;
   /** Sub-agent name for addressing (used in team messaging). */
   name?: string;
   /** Team name this sub-agent belongs to. */
   teamName?: string;
+}
+
+/** A single step in the sub-agent's work trace. */
+export interface SubagentTraceStep {
+  /** Turn number (1-based). */
+  turn: number;
+  /** Tool calls made in this turn. */
+  toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
+  /** Text output from the assistant in this turn. */
+  text: string;
+  /** Token usage for this turn's assistant message. */
+  tokens: number;
 }
 
 /** Result returned by a sub-agent run. */
@@ -52,6 +65,8 @@ export interface SubagentResult {
     cacheWrite: number;
     totalTokens: number;
   };
+  /** Step-by-step work trace for display. */
+  trace?: SubagentTraceStep[];
 }
 
 // ============================================================================
