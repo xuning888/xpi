@@ -1,63 +1,35 @@
-/**
- * xpi - Pi Extension: Sub-agent system
- *
- * Shared type definitions for agent types, teams, tasks, and mailbox messages.
- */
+// src/types.ts
+// 全局类型定义。AgentDefinition 相关类型在 definitions/types.ts。
 
-// ============================================================================
-// Agent Types
-// ============================================================================
+/** 子代理类型标识 */
+export type SubagentType = 'general-purpose' | 'Explore' | 'Plan';
 
-/** Built-in sub-agent type identifiers. */
-export type SubagentType = "general-purpose" | "Explore" | "Plan";
-
-/** Allowed model names for sub-agent override. */
-export type SubagentModel = "sonnet" | "opus" | "haiku";
-
-/** Options for running a sub-agent. */
-/** Options for running a sub-agent. */
+/** 子代理运行选项 */
 export interface SubagentOptions {
-  /** 3-5 word task description. */
   description: string;
-  /** The task prompt for the sub-agent. */
   prompt: string;
-  /** Agent type determining tool set and system prompt. */
-  type: SubagentType;
-  /** Working directory for the sub-agent. */
+  type: string;
   cwd: string;
-  /** Whether to run asynchronously without waiting for completion. */
   runInBackground?: boolean;
-  /** API key for authentication (from parent session). */
   apiKey?: string;
-  /** Sub-agent name for addressing (used in team messaging). */
   name?: string;
-  /** Team name this sub-agent belongs to. */
   teamName?: string;
 }
 
-/** A single step in the sub-agent's work trace. */
+/** 子代理工作步骤（用于 trace 展示） */
 export interface SubagentTraceStep {
-  /** Turn number (1-based). */
   turn: number;
-  /** Tool calls made in this turn. */
   toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
-  /** Text output from the assistant in this turn. */
   text: string;
-  /** Token usage for this turn's assistant message. */
   tokens: number;
 }
 
-/** Result returned by a sub-agent run. */
+/** 子代理运行结果 */
 export interface SubagentResult {
-  /** Combined text output from the sub-agent's assistant messages. */
   output: string;
-  /** All messages from the sub-agent's conversation. */
   messages: unknown[];
-  /** Whether the run was aborted. */
   aborted: boolean;
-  /** Error message if the run failed. */
   error?: string;
-  /** Token usage across all assistant messages. */
   usage: {
     input: number;
     output: number;
@@ -65,52 +37,44 @@ export interface SubagentResult {
     cacheWrite: number;
     totalTokens: number;
   };
-  /** Step-by-step work trace for display. */
   trace?: SubagentTraceStep[];
 }
 
+/** Agent tool 的 TypeBox 验证后的输入 */
+export interface AgentToolInput {
+  description: string;
+  prompt: string;
+  subagent_type?: string;
+  model?: string;
+  run_in_background?: boolean;
+}
+
 // ============================================================================
-// Team Types
+// Phase 2/3 预备类型
 // ============================================================================
 
-/** A team configuration. */
 export interface Team {
   name: string;
   description?: string;
   createdAt: string;
-  /** Agent names that are members of this team. */
   members: string[];
 }
 
-// ============================================================================
-// Task Types
-// ============================================================================
+export type TaskStatus = 'pending' | 'in_progress' | 'completed';
 
-export type TaskStatus = "pending" | "in_progress" | "completed";
-
-/** A task in a team's shared task list. */
 export interface Task {
   id: string;
   subject: string;
   description: string;
   status: TaskStatus;
-  /** Agent name assigned to this task. */
   owner?: string;
-  /** Task IDs that must complete before this one. */
   blockedBy: string[];
-  /** Task IDs that this task blocks. */
   blocks: string[];
   createdAt: string;
   completedAt?: string;
-  /** Team name this task belongs to. */
   teamName: string;
 }
 
-// ============================================================================
-// Mailbox Types
-// ============================================================================
-
-/** A message in an agent's mailbox. */
 export interface MailboxMessage {
   id: string;
   from: string;
@@ -118,17 +82,4 @@ export interface MailboxMessage {
   content: string;
   timestamp: string;
   read: boolean;
-}
-
-// ============================================================================
-// Agent Tool Input/Output
-// ============================================================================
-
-/** Validated input for the agent tool. */
-export interface AgentToolInput {
-  description: string;
-  prompt: string;
-  subagent_type?: string;
-  model?: string;
-  run_in_background?: boolean;
 }
