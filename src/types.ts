@@ -1,9 +1,6 @@
 // src/types.ts
 // 全局类型定义。AgentDefinition 相关类型在 definitions/types.ts。
 
-/** 子代理类型标识 */
-export type SubagentType = 'general-purpose' | 'Explore' | 'Plan';
-
 /** 子代理运行选项 */
 export interface SubagentOptions {
   description: string;
@@ -38,15 +35,6 @@ export interface SubagentResult {
     totalTokens: number;
   };
   trace?: SubagentTraceStep[];
-}
-
-/** Agent tool 的 TypeBox 验证后的输入 */
-export interface AgentToolInput {
-  description: string;
-  prompt: string;
-  subagent_type?: string;
-  model?: string;
-  run_in_background?: boolean;
 }
 
 // ============================================================================

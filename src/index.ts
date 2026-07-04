@@ -5,7 +5,6 @@ import { GENERAL_PURPOSE_AGENT } from './definitions/built-in/general-purpose.ts
 import { EXPLORE_AGENT } from './definitions/built-in/explore.ts';
 import { PLAN_AGENT } from './definitions/built-in/plan.ts';
 import { agentRegistry } from './definitions/registry.ts';
-import { loadMarkdownAgents } from './definitions/markdown-loader.ts';
 import { runSubagent } from './runner/subagent-runner.ts';
 import { createAgentToolDefinition } from './tools/agent-tool.ts';
 
@@ -68,7 +67,4 @@ export default function xpi(pi: ExtensionAPI): void {
     },
   });
 
-  // Phase 2 hook
-  // const customAgents = loadMarkdownAgents(ctx.cwd, '');
-  // for (const agent of customAgents) agentRegistry.register(agent);
 }
