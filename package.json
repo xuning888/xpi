@@ -1,9 +1,15 @@
 {
-  "name": "xpi",
+  "name": "@xuning/xpi",
   "version": "0.1.0",
   "description": "Pi Extension: Sub-agent system with multi-agent coordination, team management, and task tracking",
   "type": "module",
   "main": "src/index.ts",
+  "license": "MIT",
+  "keywords": ["pi", "pi-extension", "subagent", "multi-agent"],
+  "files": [
+    "src",
+    "README.md"
+  ],
   "pi": {
     "extensions": [
       "src/index.ts"
