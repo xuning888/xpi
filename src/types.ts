@@ -13,14 +13,6 @@ export interface SubagentOptions {
   teamName?: string;
 }
 
-/** 子代理工作步骤（用于 trace 展示） */
-export interface SubagentTraceStep {
-  turn: number;
-  toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
-  text: string;
-  tokens: number;
-}
-
 /** 子代理运行结果 */
 export interface SubagentResult {
   output: string;
@@ -34,40 +26,29 @@ export interface SubagentResult {
     cacheWrite: number;
     totalTokens: number;
   };
-  trace?: SubagentTraceStep[];
 }
 
 // ============================================================================
-// Phase 2/3 预备类型
+// 进度展示相关类型（通用，任何子 Agent 均可使用）
 // ============================================================================
 
-export interface Team {
+/** 单次工具调用的追踪信息 */
+export interface ToolCallTrace {
+  toolCallId: string;
   name: string;
-  description?: string;
-  createdAt: string;
-  members: string[];
+  args: Record<string, unknown>;
+  status: 'running' | 'success' | 'error';
+  resultPreview?: string;
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed';
-
-export interface Task {
-  id: string;
-  subject: string;
-  description: string;
-  status: TaskStatus;
-  owner?: string;
-  blockedBy: string[];
-  blocks: string[];
-  createdAt: string;
-  completedAt?: string;
-  teamName: string;
-}
-
-export interface MailboxMessage {
-  id: string;
-  from: string;
-  to: string;
-  content: string;
-  timestamp: string;
-  read: boolean;
+/** 子 Agent 实时进度快照。
+ *  ProgressStreamer 在每个 AgentEvent 后更新此对象并通过 onUpdate 推送。 */
+export interface SubagentProgress {
+  agentType: string;
+  turns: number;
+  toolCalls: ToolCallTrace[];
+  currentOutput: string;
+  usage: SubagentResult['usage'];
+  status: 'running' | 'completed' | 'error' | 'aborted';
+  errorMessage?: string;
 }
