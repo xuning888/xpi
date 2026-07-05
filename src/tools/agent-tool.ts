@@ -29,7 +29,6 @@ interface AgentToolDetails {
 // ============================================================================
 
 function formatToolCall(tc: ToolCallTrace, fg: (color: any, text: string) => string): string {
-    debugger;
     const argsStr = JSON.stringify(tc.args);
     return fg('muted', '→ ') + fg('accent', tc.name) + fg('dim', ` ${argsStr}`);
 }

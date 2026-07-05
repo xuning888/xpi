@@ -146,8 +146,6 @@ export async function runSubagent(
     if (!errorMessage && !aborted) {
         errorMessage = extractAgentError(messages);
     }
-
-    debugger;
     // 构建 trace
     const outputParts: string[] = [];
 
