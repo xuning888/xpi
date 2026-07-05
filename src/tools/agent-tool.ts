@@ -2,7 +2,7 @@
 import { Type } from 'typebox';
 import type { Static } from 'typebox';
 import type { Model } from '@earendil-works/pi-ai/compat';
-import type { ToolDefinition } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 import { agentRegistry } from '../definitions/registry.ts';
 import { runSubagent, runSubagentBackground } from '../runner/subagent-runner.ts';
@@ -29,7 +29,7 @@ function buildAgentListDescription(): string {
   return agentRegistry.listForPrompt();
 }
 
-export function createAgentToolDefinition(): ToolDefinition<typeof agentToolSchema, unknown> {
+export function createAgentToolDefinition(pi: ExtensionAPI): ToolDefinition<typeof agentToolSchema, unknown> {
   return defineTool({
     name: 'agent',
     label: 'Agent (Sub-agent)',
@@ -83,12 +83,6 @@ Usage notes:
         if (authResult.ok) apiKey = authResult.apiKey;
       } catch { /* env fallback */ }
 
-      const sendMessage = (msg: { customType: string; content: string; display: boolean; details?: unknown }) => {
-        try {
-          (ctx as any).sendMessage?.(msg);
-        } catch { /* silent — progress messages are best-effort */ }
-      };
-
       const subagentOptions: SubagentOptions = {
         description: input.description,
         prompt: input.prompt,
@@ -99,7 +93,7 @@ Usage notes:
       };
 
       if (input.run_in_background) {
-        const runId = runSubagentBackground(agentDef, { ...subagentOptions, model: ctx.model as Model<any> }, sendMessage);
+        const runId = runSubagentBackground(agentDef, { ...subagentOptions, model: ctx.model as Model<any> }, pi);
         return {
           content: [{ type: 'text', text: `Sub-agent launched in background.\nRun ID: \`${runId}\`\nType: ${agentType}\nDescription: ${input.description}` }],
           details: { runId, type: agentType, background: true },
@@ -110,7 +104,7 @@ Usage notes:
         return { content: [{ type: 'text', text: 'Aborted.' }], details: { aborted: true } };
       }
 
-      const result = await runSubagent(agentDef, { ...subagentOptions, model: ctx.model as Model<any> }, sendMessage);
+      const result = await runSubagent(agentDef, { ...subagentOptions, model: ctx.model as Model<any> }, pi);
 
       if (result.aborted) {
         return { content: [{ type: 'text', text: 'Sub-agent aborted.' }], details: { aborted: true } };
@@ -123,15 +117,28 @@ Usage notes:
         };
       }
 
+      // Build trace summary
+      let traceSection = '';
+      if (result.trace && result.trace.length > 0) {
+        const lines: string[] = ['', '## Work Process', ''];
+        for (const step of result.trace) {
+          const toolList = step.toolCalls.length > 0
+            ? step.toolCalls.map(tc => `\`${tc.name}\``).join(', ')
+            : 'thinking';
+          lines.push(`| Turn ${step.turn} | ${step.tokens.toLocaleString()}t | ${toolList} |`);
+        }
+        traceSection = lines.join('\n') + '\n';
+      }
+
       const outputText = [
         `## Sub-agent Result (${agentType})`,
         `**Task**: ${input.description}`,
         `**Usage**: ${result.usage.totalTokens.toLocaleString()} tokens (in: ${result.usage.input}, out: ${result.usage.output})`,
-        '',
+        traceSection,
         '---',
         '',
         result.output,
-      ].join('\n');
+      ].filter(Boolean).join('\n');
 
       return {
         content: [{ type: 'text', text: outputText }],

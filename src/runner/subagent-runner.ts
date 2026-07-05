@@ -1,7 +1,7 @@
 // src/runner/subagent-runner.ts
-import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
+import {Agent, AgentEvent, type AgentMessage} from '@earendil-works/pi-agent-core';
 import { type AssistantMessage, type Model, streamSimple } from '@earendil-works/pi-ai/compat';
-import { createCodingTools, createReadOnlyTools } from '@earendil-works/pi-coding-agent';
+import {createCodingTools, createReadOnlyTools, type ExtensionAPI} from '@earendil-works/pi-coding-agent';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { AgentDefinition } from '../definitions/types.ts';
 import type { SubagentOptions, SubagentResult, SubagentTraceStep } from '../types.ts';
@@ -100,7 +100,7 @@ function resolveTools(agent: AgentDefinition, cwd: string): AgentTool[] {
 export async function runSubagent(
   agentDef: AgentDefinition,
   options: SubagentOptions & { model: Model<any>; apiKey?: string },
-  sendMessage?: (msg: { customType: string; content: string; display: boolean; details?: unknown }) => void,
+  pi: ExtensionAPI
 ): Promise<SubagentResult> {
   const systemPrompt = agentDef.getSystemPrompt();
   const tools = resolveTools(agentDef, options.cwd);
@@ -119,13 +119,12 @@ export async function runSubagent(
     maxRetryDelayMs: 30_000,
   });
 
-  // 实时进度流式
-  const streamer = sendMessage ? new ProgressStreamer(agentDef.agentType, sendMessage) : null;
-  const unsubscribe = streamer
-    ? agent.subscribe((event, _signal) => {
-        streamer.onAgentEvent(event);
-      })
-    : () => {};
+  if (pi != null) {
+    const streame = new ProgressStreamer(agentDef.agentType, pi);
+    agent.subscribe((event: AgentEvent, sig: AbortSignal) => {
+      streame.onAgentEvent(event)
+    })
+  }
 
   let aborted = false;
   let errorMessage: string | undefined;
@@ -141,9 +140,6 @@ export async function runSubagent(
       errorMessage = message;
     }
   }
-
-  unsubscribe();
-  streamer?.stop();
 
   const messages = agent.state.messages;
   const usage = sumUsage(messages);
@@ -188,10 +184,10 @@ export async function runSubagent(
 export function runSubagentBackground(
   agentDef: AgentDefinition,
   options: SubagentOptions & { model: Model<any>; apiKey?: string },
-  sendMessage?: (msg: { customType: string; content: string; display: boolean; details?: unknown }) => void,
+  pi: ExtensionAPI
 ): string {
   const runId = `bg-${agentDef.agentType}-${Date.now()}`;
-  const promise = runSubagent(agentDef, options, sendMessage);
+  const promise = runSubagent(agentDef, options, pi);
   backgroundManager.launch(runId, promise);
   return runId;
 }

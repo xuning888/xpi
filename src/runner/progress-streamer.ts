@@ -1,12 +1,7 @@
 // src/runner/progress-streamer.ts
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import {ExtensionAPI} from "@earendil-works/pi-coding-agent";
 
-type SendMessageFn = (message: {
-  customType: string;
-  content: string;
-  display: boolean;
-  details?: unknown;
-}) => void;
 
 /**
  * 实时进度流式输出器。
@@ -14,18 +9,20 @@ type SendMessageFn = (message: {
  */
 export class ProgressStreamer {
   private agentName: string;
-  private sendMessage: SendMessageFn;
+  private pi: ExtensionAPI;
   private turnCount = 0;
   private enabled = true;
 
-  constructor(agentName: string, sendMessage: SendMessageFn) {
+  constructor(agentName: string, pi: ExtensionAPI) {
     this.agentName = agentName;
-    this.sendMessage = sendMessage;
+    this.pi = pi;
   }
 
   /** 处理 Agent 生命周期事件 */
   onAgentEvent(event: AgentEvent): void {
     if (!this.enabled) return;
+
+    const eventType = event.type;
 
     switch (event.type) {
       case 'turn_start':
@@ -33,21 +30,11 @@ export class ProgressStreamer {
         break;
 
       case 'tool_execution_start':
-        this.sendMessage({
-          customType: 'subagent-progress',
-          content: `🔧 ${this.agentName} · Turn ${this.turnCount} · ${event.toolName}`,
-          display: true,
-          details: { agentName: this.agentName, turn: this.turnCount, toolName: event.toolName },
-        });
+        console.log(event);
         break;
 
       case 'tool_execution_end':
-        this.sendMessage({
-          customType: 'subagent-progress',
-          content: `✅ ${this.agentName} · ${event.toolName} · ${event.isError ? 'failed' : 'done'}`,
-          display: true,
-          details: { agentName: this.agentName, toolName: event.toolName, isError: event.isError },
-        });
+        console.log(event);
         break;
     }
   }
