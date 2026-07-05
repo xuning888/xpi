@@ -5,7 +5,6 @@ import {EXPLORE_AGENT} from './subagent/built-in/explore.ts';
 import {PLAN_AGENT} from './subagent/built-in/plan.ts';
 import {agentRegistry} from './subagent/definitions/registry.ts';
 import {createAgentToolDefinition} from './subagent/tools/agent-tool.ts';
-import {registerGuard, createDefaultGuardConfig} from './guard/index.ts';
 
 export default function xpi(pi: ExtensionAPI): void {
     // 注册内置 Agent
@@ -18,6 +17,4 @@ export default function xpi(pi: ExtensionAPI): void {
     pi.registerTool(createAgentToolDefinition('Explore'));
     pi.registerTool(createAgentToolDefinition( 'Plan'));
 
-    // 注册门禁守卫
-    registerGuard(pi, createDefaultGuardConfig());
 }
