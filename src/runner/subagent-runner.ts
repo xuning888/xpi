@@ -155,12 +155,6 @@ export async function runSubagent(
     for (const msg of messages) {
         if (isAssistantMessage(msg)) {
             const text = extractTextContent(msg);
-            const toolCalls = msg.content
-                .filter(
-                    (c): c is { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> } =>
-                        c.type === 'toolCall',
-                )
-                .map((tc) => ({name: tc.name, arguments: tc.arguments}));
             if (text) outputParts.push(text);
         }
     }
@@ -177,16 +171,4 @@ export async function runSubagent(
         error: errorMessage,
         usage
     };
-}
-
-export function runSubagentBackground(
-    agentDef: AgentDefinition,
-    options: SubagentOptions & { model: Model<any>; apiKey?: string },
-    setStatus?: (text: string | undefined) => void,
-    onUpdate?: (progress: SubagentProgress) => void,
-): string {
-    const runId = `bg-${agentDef.agentType}-${Date.now()}`;
-    const promise = runSubagent(agentDef, options, setStatus, onUpdate);
-    backgroundManager.launch(runId, promise);
-    return runId;
 }

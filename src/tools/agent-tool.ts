@@ -2,7 +2,7 @@
 import {Type} from 'typebox';
 import type {Static} from 'typebox';
 import type {Model} from '@earendil-works/pi-ai/compat';
-import {ExtensionAPI, Theme, ToolDefinition} from '@earendil-works/pi-coding-agent';
+import {Theme, ToolDefinition} from '@earendil-works/pi-coding-agent';
 import {defineTool, getMarkdownTheme} from '@earendil-works/pi-coding-agent';
 import {Container, Markdown, Spacer, Text} from '@earendil-works/pi-tui';
 import {agentRegistry} from '../definitions/registry.ts';
@@ -91,21 +91,16 @@ export function createAgentToolDefinition(
         throw new Error(`Unknown agent type: ${agentType}. Available: ${agentRegistry.typeNames().join(', ')}`);
     }
 
-    const toolName = agentType;              // 工具名直接用 agentType
+    const toolName = agentType;
     const toolLabel = `${agentType} (Sub-agent)`;
-    const description = agentDef.whenToUse; // 来自 Agent 定义的描述
+    const description = agentDef.whenToUse;
 
     const schema = makeSchema(agentType);
-
-    // 按 agentType 定制 prompt 指引
-    const { promptSnippet, promptGuidelines } = makePromptMeta(agentType, agentDef);
 
     return defineTool({
         name: toolName,
         label: toolLabel,
         description,
-        promptSnippet,
-        promptGuidelines,
         parameters: schema,
         renderShell: 'default',
 
@@ -185,7 +180,6 @@ export function createAgentToolDefinition(
                 `**Task**: ${input.description}`,
                 `**Usage**: ${result.usage.totalTokens.toLocaleString()} tokens (in: ${result.usage.input}, out: ${result.usage.output})`,
                 '---',
-                '',
                 result.output,
             ].filter(Boolean).join('\n');
 
@@ -308,43 +302,4 @@ function makeSchema(_agentType: string) {
             Type.String({description: 'Optional model override. If omitted, inherits parent model.'}),
         ),
     });
-}
-
-/** 按 agentType 生成 promptSnippet 和 promptGuidelines */
-function makePromptMeta(agentType: string, agentDef: AgentDefinition): {
-    promptSnippet: string;
-    promptGuidelines: string[];
-} {
-    switch (agentType) {
-        case 'Explore':
-            return {
-                promptSnippet: 'Explore the codebase: find files, search patterns, read and analyze code',
-                promptGuidelines: [
-                    'Use for codebase exploration, research, and answering questions about the code',
-                    'Specify thoroughness: "quick" for basic searches, "medium" for moderate, "very thorough" for deep analysis',
-                    'Read-only: cannot modify files',
-                    agentDef.whenToUse,
-                ],
-            };
-        case 'Plan':
-            return {
-                promptSnippet: 'Create an implementation plan: design architecture, identify critical files',
-                promptGuidelines: [
-                    'Use for planning before implementation — explores codebase first, then designs a solution',
-                    'Returns step-by-step plans with critical files, dependencies, and trade-offs',
-                    'Read-only: cannot modify files',
-                    agentDef.whenToUse,
-                ],
-            };
-        default: // general-purpose
-            return {
-                promptSnippet: 'Delegate complex multi-step coding tasks to an autonomous sub-agent',
-                promptGuidelines: [
-                    'Use for complex multi-step tasks that benefit from focused independent execution',
-                    'Sub-agents work independently and return a summary when done',
-                    'Cannot spawn additional sub-agents',
-                    agentDef.whenToUse,
-                ],
-            };
-    }
 }

@@ -25,7 +25,6 @@ export interface BuiltInAgentDefinition extends BaseAgentDefinition {
   effort?: EffortLevel;
   maxTurns?: number;
   permissionMode?: PermissionMode;
-  isolation?: 'worktree';
   background?: boolean;
   memory?: 'user' | 'project';
 }
@@ -38,7 +37,6 @@ export interface CustomAgentDefinition extends BaseAgentDefinition {
   effort?: EffortLevel;
   maxTurns?: number;
   permissionMode?: PermissionMode;
-  isolation?: 'worktree';
   background?: boolean;
   memory?: 'user' | 'project';
 }
