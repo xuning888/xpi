@@ -5,7 +5,7 @@ export const GENERAL_PURPOSE_AGENT: BuiltInAgentDefinition = {
   agentType: 'general-purpose',
   whenToUse:
     'General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. Use when you need to delegate work that requires file reading, editing, or shell commands.',
-  tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
+  tools: ['*'],
   disallowedTools: ['agent'],
   model: 'inherit',
   source: 'built-in',

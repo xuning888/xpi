@@ -64,7 +64,10 @@ const ALL_TOOLS: Record<string, (cwd: string) => AgentTool[]> = {
 
 function resolveTools(agent: AgentDefinition, cwd: string): AgentTool[] {
     const tools: AgentTool[] = [];
-
+    if (agent.tools?.includes('*')) {
+        tools.push(...createCodingTools(cwd));
+        return tools;
+    }
     if (agent.tools && agent.tools.length > 0) {
         // 白名单模式
         const denySet = new Set(agent.disallowedTools ?? []);

@@ -4,10 +4,11 @@ import type {Static} from 'typebox';
 import type {Model} from '@earendil-works/pi-ai/compat';
 import {ExtensionAPI, Theme, ToolDefinition} from '@earendil-works/pi-coding-agent';
 import {defineTool, getMarkdownTheme} from '@earendil-works/pi-coding-agent';
-import {Container, Markdown, Spacer, Text, truncateToWidth} from '@earendil-works/pi-tui';
+import {Container, Markdown, Spacer, Text} from '@earendil-works/pi-tui';
 import {agentRegistry} from '../definitions/registry.ts';
-import {runSubagent, runSubagentBackground} from '../runner/subagent-runner.ts';
+import {runSubagent} from '../runner/subagent-runner.ts';
 import type {SubagentOptions, SubagentProgress, SubagentResult, ToolCallTrace} from '../types.ts';
+import type {AgentDefinition} from "../definitions/types.ts";
 
 // ============================================================================
 // Details type for TUI rendering
@@ -20,8 +21,6 @@ interface AgentToolDetails {
     progress?: SubagentProgress;
     aborted?: boolean;
     error?: string;
-    background?: boolean;
-    runId?: string;
 }
 
 // ============================================================================
@@ -48,79 +47,74 @@ function formatUsageLine(usage: SubagentResult['usage']): string {
     return parts.join(' ');
 }
 
-// ============================================================================
-// Schema
-// ============================================================================
-
-const agentToolSchema = Type.Object({
-    description: Type.String({description: 'A short (3-5 word) description of the task for the sub-agent'}),
-    prompt: Type.String({description: 'The task for the sub-agent to perform. Be specific and detailed.'}),
-    subagent_type: Type.Optional(
-        Type.String({
-            description: `The type of sub-agent to use. Available: ${agentRegistry.typeNames().join(', ')}. Defaults to "general-purpose".`,
-            default: 'general-purpose',
-        }),
-    ),
-    model: Type.Optional(
-        Type.String({description: 'Optional model override. If omitted, inherits parent model.'}),
-    )
-});
-
-function buildAgentListDescription(): string {
-    return agentRegistry.listForPrompt();
+function iconShow(status: string, theme: Theme, head: boolean) {
+    const isRunning = status === 'running';
+    const isError = status === 'error' || status === 'aborted';
+    let icon: string;
+    if (isRunning) {
+        icon = theme.fg('warning', '⏳')
+    } else {
+        if (isError) {
+            icon = theme.fg('error', '✗');
+        } else {
+            if (head) {
+                icon = theme.fg('success', '⏳')
+            } else {
+                icon = theme.fg('success', '✓')
+            }
+        }
+    }
+    return icon;
 }
 
 // ============================================================================
-// Tool definition
+// Per-agent-type tool factory
 // ============================================================================
 
-export function createAgentToolDefinition(pi: ExtensionAPI): ToolDefinition<typeof agentToolSchema, AgentToolDetails> {
+/**
+ * 为指定 agentType 创建独立的 Pi tool 定义。
+ *
+ * 三个内置 Agent 对应三个独立工具：
+ * - `general-purpose` → tool name: `general-purpose`
+ * - `Explore`         → tool name: `explore`
+ * - `Plan`            → tool name: `plan`
+ *
+ * 每个工具共享相同的 execute / renderCall / renderResult 逻辑，
+ * 只是 agentType 固定、tool name 和描述不同。
+ */
+export function createAgentToolDefinition(
+    agentType: string,
+): ToolDefinition<ReturnType<typeof makeSchema>, AgentToolDetails> {
+    const agentDef = agentRegistry.get(agentType);
+
+    if (!agentDef) {
+        throw new Error(`Unknown agent type: ${agentType}. Available: ${agentRegistry.typeNames().join(', ')}`);
+    }
+
+    const toolName = agentType;              // 工具名直接用 agentType
+    const toolLabel = `${agentType} (Sub-agent)`;
+    const description = agentDef.whenToUse; // 来自 Agent 定义的描述
+
+    const schema = makeSchema(agentType);
+
+    // 按 agentType 定制 prompt 指引
+    const { promptSnippet, promptGuidelines } = makePromptMeta(agentType, agentDef);
+
     return defineTool({
-        name: 'agent',
-        label: 'Agent (Sub-agent)',
-        description: `Launch a new agent to handle complex, multi-step tasks autonomously. Each agent type has specific capabilities and tools available to it. Specify a subagent_type to select which agent type to use. If omitted, the general-purpose agent is used.
-
-Available agent types and the tools they have access to:
-${buildAgentListDescription()}
-
-When NOT to use the agent tool:
-- If you want to read a specific file path, use the read tool instead
-- If you are searching for a specific class or keyword, use grep instead
-- Simple single-step operations
-
-Usage notes:
-- Always include a short description (3-5 words)
-- Sub-agents cannot spawn additional sub-agents
-- Choose the right agent type: Explore/Plan for read-only, general-purpose for coding
-- Sub-agents work independently and return a summary when done`,
-        promptSnippet: 'Launch sub-agents for complex tasks (research, exploration, planning, coding)',
-        promptGuidelines: [
-            'Use the agent tool for complex multi-step tasks that benefit from focused independent execution',
-            `Choose the appropriate sub-agent type: ${agentRegistry.typeNames().join(', ')}`,
-            'Sub-agents cannot spawn additional sub-agents, so give them complete tasks',
-            'Sub-agents work independently and return a summary when done — do not micromanage',
-        ],
-        parameters: agentToolSchema,
+        name: toolName,
+        label: toolLabel,
+        description,
+        promptSnippet,
+        promptGuidelines,
+        parameters: schema,
         renderShell: 'default',
 
-        // ========================================================================
+        // ====================================================================
         // Execute
-        // ========================================================================
+        // ====================================================================
 
-        async execute(toolCallId, params, signal, onUpdate, ctx) {
-            const input = params as Static<typeof agentToolSchema>;
-            const agentType = input.subagent_type ?? 'general-purpose';
-            const agentDef = agentRegistry.get(agentType);
-
-            if (!agentDef) {
-                return {
-                    content: [{
-                        type: 'text',
-                        text: `Unknown agent type: ${agentType}. Available: ${agentRegistry.typeNames().join(', ')}`
-                    }],
-                    details: {type: agentType},
-                };
-            }
+        async execute(_toolCallId, params, signal, onUpdate, ctx) {
+            const input = params as Static<typeof schema>;
 
             if (!ctx.model) {
                 return {
@@ -133,15 +127,14 @@ Usage notes:
             try {
                 const authResult = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model as Model<any>);
                 if (authResult.ok) apiKey = authResult.apiKey;
-            } catch { /* env fallback */
-            }
+            } catch { /* env fallback */ }
 
             const subagentOptions: SubagentOptions = {
                 description: input.description,
                 prompt: input.prompt,
                 type: agentType,
                 cwd: ctx.cwd,
-                apiKey
+                apiKey,
             };
 
             // 进度回调：将 ProgressStreamer 的输出通过 onUpdate 推送到 TUI
@@ -149,20 +142,14 @@ Usage notes:
                 ? (progress: SubagentProgress) => {
                     onUpdate({
                         content: [{type: 'text', text: progress.currentOutput || `Turn ${progress.turns}...`}],
-                        details: {
-                            type: agentType,
-                            progress,
-                        },
+                        details: { type: agentType, progress },
                     });
                 }
                 : undefined;
 
             // 状态栏回调
             const setStatus = (text: string | undefined) => {
-                try {
-                    ctx.ui.setStatus('xpi-subagent', text);
-                } catch { /* 不可用时忽略 */
-                }
+                try { ctx.ui.setStatus('xpi-subagent', text); } catch { /* ignore */ }
             };
 
             if (signal?.aborted) {
@@ -187,7 +174,7 @@ Usage notes:
                 return {
                     content: [{
                         type: 'text',
-                        text: `Sub-agent error: ${result.error}\n\nPartial output:\n${result.output}`
+                        text: `Sub-agent error: ${result.error}\n\nPartial output:\n${result.output}`,
                     }],
                     details: {type: agentType, error: result.error, usage: result.usage},
                 };
@@ -208,37 +195,28 @@ Usage notes:
             };
         },
 
-        // ========================================================================
+        // ====================================================================
         // Render Call
-        // ========================================================================
+        // ====================================================================
 
         renderCall(args, theme, _context) {
-            const agentType = (args as Static<typeof agentToolSchema>).subagent_type ?? 'general-purpose';
-            const description = (args as Static<typeof agentToolSchema>).description ?? '...';
-            const preview = description.length > 60 ? `${description.slice(0, 60)}...` : description;
+            const a = args as Static<typeof schema>;
+            const desc = a.description ?? '...';
+            const preview = desc.length > 60 ? `${desc.slice(0, 60)}...` : desc;
 
             let text =
-                theme.fg('toolTitle', theme.bold('agent ')) +
-                theme.fg('accent', agentType);
+                theme.fg('toolTitle', theme.bold(`${agentType} `));
             text += `\n  ${theme.fg('dim', preview)}`;
             return new Text(text, 0, 0);
         },
 
-        // ========================================================================
+        // ====================================================================
         // Render Result
-        // ========================================================================
+        // ====================================================================
 
         renderResult(result, {expanded}, theme, _context) {
             const details = result.details as AgentToolDetails | undefined;
             const mdTheme = getMarkdownTheme();
-
-            // Background mode
-            if (details?.background) {
-                return new Text(
-                    theme.fg('muted', `Background agent launched.\nRun ID: ${details.runId ?? 'unknown'}\nType: ${details.type}`),
-                    0, 0,
-                );
-            }
 
             // Aborted
             if (details?.aborted) {
@@ -248,7 +226,7 @@ Usage notes:
             const progress = details?.progress;
             const hasProgress = !!progress;
 
-            // Error state
+            // Error state (no progress)
             if (!hasProgress && details?.error) {
                 return new Text(theme.fg('error', `✗ ${details.type}: ${details.error}`), 0, 0);
             }
@@ -262,7 +240,7 @@ Usage notes:
             // ---- Progress-based rendering ----
             const isError = progress.status === 'error' || progress.status === 'aborted';
 
-            let icon = iconShow(progress.status, theme, true);
+            const icon = iconShow(progress.status, theme, true);
 
             const toolCalls = progress.toolCalls;
 
@@ -287,54 +265,86 @@ Usage notes:
                 if (expanded) {
                     for (let i = toolCalls.length - 1; i >= 0; i--) {
                         const tc = toolCalls[i];
-                        const tcIcon = iconShow(tc.status, theme, false)
+                        const tcIcon = iconShow(tc.status, theme, false);
                         container.addChild(
                             new Text(`${tcIcon} ${formatToolCall(tc, theme.fg.bind(theme))}`, 0, 0),
                         );
                     }
                 } else {
-                    let limit = 3;
+                    const limit = 3;
                     let count = 0;
-                    for (let i = toolCalls.length - 1; i >= 0; i--) {
-                        if (count >= limit) {
-                            break;
-                        }
+                    for (let i = toolCalls.length - 1; i >= 0 && count < limit; i--, count++) {
                         const tc = toolCalls[i];
                         const tcIcon = iconShow(tc.status, theme, false);
                         container.addChild(
                             new Text(`${tcIcon} ${formatToolCall(tc, theme.fg.bind(theme))}`, 0, 0),
                         );
-                        count++;
                     }
                 }
             }
+
             // Output
             if (progress.currentOutput) {
                 container.addChild(new Spacer(1));
                 container.addChild(new Text(theme.fg('muted', '─── Output ───'), 0, 0));
                 container.addChild(new Markdown(progress.currentOutput.trim(), 0, 0, mdTheme));
             }
+
             return container;
         },
     });
 }
 
-function iconShow(status: string, theme: Theme, head: boolean) {
-    const isRunning = status === 'running';
-    const isError = status === 'error' || status === 'aborted';
-    let icon: string;
-    if (isRunning) {
-        icon = theme.fg('warning', '⏳')
-    } else {
-        if (isError) {
-            icon = theme.fg('error', '✗');
-        } else {
-            if (head) {
-                icon = theme.fg('success', '⏳')
-            } else {
-                icon = theme.fg('success', '✓')
-            }
-        }
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** 按 agentType 生成简化的参数 schema（无需 subagent_type 字段） */
+function makeSchema(_agentType: string) {
+    return Type.Object({
+        description: Type.String({description: 'A short (3-5 word) description of the task'}),
+        prompt: Type.String({description: 'The task to perform. Be specific and detailed.'}),
+        model: Type.Optional(
+            Type.String({description: 'Optional model override. If omitted, inherits parent model.'}),
+        ),
+    });
+}
+
+/** 按 agentType 生成 promptSnippet 和 promptGuidelines */
+function makePromptMeta(agentType: string, agentDef: AgentDefinition): {
+    promptSnippet: string;
+    promptGuidelines: string[];
+} {
+    switch (agentType) {
+        case 'Explore':
+            return {
+                promptSnippet: 'Explore the codebase: find files, search patterns, read and analyze code',
+                promptGuidelines: [
+                    'Use for codebase exploration, research, and answering questions about the code',
+                    'Specify thoroughness: "quick" for basic searches, "medium" for moderate, "very thorough" for deep analysis',
+                    'Read-only: cannot modify files',
+                    agentDef.whenToUse,
+                ],
+            };
+        case 'Plan':
+            return {
+                promptSnippet: 'Create an implementation plan: design architecture, identify critical files',
+                promptGuidelines: [
+                    'Use for planning before implementation — explores codebase first, then designs a solution',
+                    'Returns step-by-step plans with critical files, dependencies, and trade-offs',
+                    'Read-only: cannot modify files',
+                    agentDef.whenToUse,
+                ],
+            };
+        default: // general-purpose
+            return {
+                promptSnippet: 'Delegate complex multi-step coding tasks to an autonomous sub-agent',
+                promptGuidelines: [
+                    'Use for complex multi-step tasks that benefit from focused independent execution',
+                    'Sub-agents work independently and return a summary when done',
+                    'Cannot spawn additional sub-agents',
+                    agentDef.whenToUse,
+                ],
+            };
     }
-    return icon;
 }

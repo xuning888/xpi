@@ -12,8 +12,8 @@ export default function xpi(pi: ExtensionAPI): void {
     agentRegistry.register(EXPLORE_AGENT);
     agentRegistry.register(PLAN_AGENT);
 
-    // 注册工具
-    pi.registerTool(createAgentToolDefinition(pi));
-
-
+    // 每个内置 Agent 注册为独立工具
+    pi.registerTool(createAgentToolDefinition('general-purpose'));
+    pi.registerTool(createAgentToolDefinition('Explore'));
+    pi.registerTool(createAgentToolDefinition( 'Plan'));
 }
