@@ -1,4 +1,4 @@
-// src/tools/agent-tool.ts
+// src/subagent/tools/agent-tool.ts
 import {Type} from 'typebox';
 import type {Static} from 'typebox';
 import type {Model} from '@earendil-works/pi-ai/compat';

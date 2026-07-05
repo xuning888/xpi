@@ -1,5 +1,5 @@
-// src/definitions/built-in/explore.ts
-import type { BuiltInAgentDefinition } from '../types.ts';
+// src/subagent/built-in/explore.ts
+import type { BuiltInAgentDefinition } from '../definitions/types.ts';
 
 
 const EXPLORE_WHEN_TO_USE =

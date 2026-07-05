@@ -1,5 +1,5 @@
-// src/definitions/built-in/general-purpose.ts
-import type { BuiltInAgentDefinition } from '../types.ts';
+// src/subagent/built-in/general-purpose.ts
+import type { BuiltInAgentDefinition } from '../definitions/types.ts';
 
 export const GENERAL_PURPOSE_AGENT: BuiltInAgentDefinition = {
   agentType: 'general-purpose',

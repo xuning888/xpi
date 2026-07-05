@@ -1,4 +1,4 @@
-// src/definitions/registry.ts
+// src/subagent/definitions/registry.ts
 import type { AgentDefinition } from './types.ts';
 
 /**

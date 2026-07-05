@@ -1,10 +1,10 @@
 // src/index.ts
 import type {ExtensionAPI} from '@earendil-works/pi-coding-agent';
-import {GENERAL_PURPOSE_AGENT} from './definitions/built-in/general-purpose.ts';
-import {EXPLORE_AGENT} from './definitions/built-in/explore.ts';
-import {PLAN_AGENT} from './definitions/built-in/plan.ts';
-import {agentRegistry} from './definitions/registry.ts';
-import {createAgentToolDefinition} from './tools/agent-tool.ts';
+import {GENERAL_PURPOSE_AGENT} from './subagent/built-in/general-purpose.ts';
+import {EXPLORE_AGENT} from './subagent/built-in/explore.ts';
+import {PLAN_AGENT} from './subagent/built-in/plan.ts';
+import {agentRegistry} from './subagent/definitions/registry.ts';
+import {createAgentToolDefinition} from './subagent/tools/agent-tool.ts';
 
 export default function xpi(pi: ExtensionAPI): void {
     // 注册内置 Agent

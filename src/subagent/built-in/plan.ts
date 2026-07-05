@@ -1,5 +1,5 @@
-// src/definitions/built-in/plan.ts
-import type { BuiltInAgentDefinition } from '../types.ts';
+// src/subagent/built-in/plan.ts
+import type { BuiltInAgentDefinition } from '../definitions/types.ts';
 
 export const PLAN_AGENT: BuiltInAgentDefinition = {
   agentType: 'Plan',

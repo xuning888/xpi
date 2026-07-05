@@ -1,4 +1,4 @@
-// src/runner/progress-streamer.ts
+// src/subagent/runner/progress-streamer.ts
 import type {AgentEvent, AgentMessage} from '@earendil-works/pi-agent-core';
 import type {AssistantMessage} from '@earendil-works/pi-ai/compat';
 import type {SubagentProgress} from '../types.ts';

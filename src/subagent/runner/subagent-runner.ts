@@ -1,4 +1,4 @@
-// src/runner/subagent-runner.ts
+// src/subagent/runner/subagent-runner.ts
 import {Agent, AgentEvent, type AgentMessage} from '@earendil-works/pi-agent-core';
 import {type AssistantMessage, type Model, streamSimple} from '@earendil-works/pi-ai/compat';
 import {createCodingTools, createReadOnlyTools, type ExtensionAPI} from '@earendil-works/pi-coding-agent';
@@ -6,7 +6,6 @@ import type {AgentTool} from '@earendil-works/pi-agent-core';
 import type {AgentDefinition} from '../definitions/types.ts';
 import type {SubagentOptions, SubagentProgress, SubagentResult} from '../types.ts';
 import {ProgressStreamer} from './progress-streamer.ts';
-import {backgroundManager} from './background-manager.ts';
 
 // ============================================================================
 // Helpers
